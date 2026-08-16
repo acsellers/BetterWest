@@ -11,7 +11,7 @@ The top level shovel goes from around 15% to 24% drop rate, which feels right to
 
 ## Beds also help with sprint amount.
 
-There is a way in the game to upgrade your sprint level, but it takes a while to unlock it. Instead, a better
+There is a way in the game to upgrade your sprint level, but it takes a while to unlock it. Alongside that, a better
 night's sleep will now give you 30 more sprint points every level.
 
 ## Using
