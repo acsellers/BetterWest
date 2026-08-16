@@ -21,5 +21,5 @@ mod files from the Releases page into the BepInEx/plugins folder in the game dir
 
 The mod files are open source, so if you feel like they're too generous or not generous enough, feel free to 
 fork and modify them yourself. It's a single file, so a basic programming knowledge or an AI would get you there. The
-hardest part is installing dotnet and calling dotnet build. If I can get build the files from a Linux installation,
+hardest part is installing dotnet and calling dotnet build. If I can build the files from a Linux installation,
 you can get it working on Windows.
