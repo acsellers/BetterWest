@@ -2,6 +2,7 @@
 using BepInEx.Logging;
 using UnityEngine;
 using HarmonyLib;
+using System.Reflection;
 
 namespace BetterWest;
 
@@ -23,13 +24,15 @@ public class Plugin : BaseUnityPlugin
         Harmony.CreateAndPatchAll(typeof(SkillsManagerPatch));
         Harmony.CreateAndPatchAll(typeof(PlayerControllerPatch));
         Harmony.CreateAndPatchAll(typeof(BedsManagerPatch));
+        Harmony.CreateAndPatchAll(typeof(PetroleumMachinePatch));
+        Harmony.CreateAndPatchAll(typeof(PetroleumMachineUpdateFuelPatch));
     }
 
     private void Update()
     {
-        // Unity Legacy Input System (KeyCode.F12)
-        // If the game uses the new Input System package, use: Keyboard.current.f12Key.wasPressedThisFrame
-        if (Input.GetKeyDown(KeyCode.F12))
+        // Unity Legacy Input System (KeyCode.F11)
+        // If the game uses the new Input System package, use: Keyboard.current.f11Key.wasPressedThisFrame
+        if (Input.GetKeyDown(KeyCode.F11))
         {
             GetSkillValues();
         }
@@ -63,19 +66,16 @@ public class Plugin : BaseUnityPlugin
 [HarmonyPatch(typeof(ResourcesSystem), nameof(ResourcesSystem.GetToolDataById))]
 public static class ResourcesSystemPatch
 {
+    private static readonly FieldInfo dropRateField = AccessTools.Field(typeof(ToolDataSO), "dropRate");
+    private static readonly FieldInfo radiusField = AccessTools.Field(typeof(ToolDataSO), "radius");
     // Option A: POSTFIX — Let the original run, then alter or override the return value
     [HarmonyPostfix]
     public static void Postfix(int toolId, ref ToolDataSO __result)
     {
-        // If the game didn't find a tool, or for specific target IDs:
-        if (__result != null)
-        {
-            Plugin.Logger.LogInfo($"Modifying stats for tool ID: {toolId}");
-            var tr = Traverse.Create(__result);
-
-            tr.Field("radius").SetValue(0.4f + toolId * 0.15f);
-            tr.Field("dropRate").SetValue(10+toolId * 4);
-        }
+        if (__result == null) return;
+        
+        dropRateField.SetValue(__result, 10+toolId * 4);
+        radiusField.SetValue(__result, 0.4f + toolId * 0.15f);
     }
 }
 
@@ -86,7 +86,7 @@ public static class SkillsManagerPatch
     [HarmonyPostfix]
     public static void Postfix(SkillType skillType, bool secondValue, ref float __result)
     {
-        if (skillType == SkillType.Speed)
+        if (skillType == SkillType.Speed && secondValue)
         {
             // add in bed energy
             var bed = StaticInstance<BedsManager>.Instance.GetCurrentBedData();
@@ -114,5 +114,37 @@ public static class BedsManagerPatch {
         Plugin.Logger.LogInfo("BedsManager.BuyBed called");
         var skillLevel = StaticInstance<SkillsManager>.Instance.GetCurrentSkillValue(SkillType.Speed, secondValue: true);
         StaticInstance<PlayerRunningController>.Instance.UpdateMaxRunPoints(skillLevel);
+    }
+}
+
+[HarmonyPatch(typeof(PetroleumMachine), nameof(PetroleumMachine.ResetTime))]
+public static class PetroleumMachinePatch {
+    [HarmonyPrefix]
+    public static void Prefix(PetroleumMachine __instance) {
+        Plugin.Logger.LogInfo("PetroleumMachine.ResetTime called");
+        var tr = Traverse.Create(StaticInstance<FurnacesManager>.Instance);
+        tr.Field("petroleumMachineWorkTime").SetValue(100f);
+    }
+}
+
+[HarmonyPatch(typeof(PetroleumMachine), "UpdateFuel")]
+public static class PetroleumMachineUpdateFuelPatch {
+    [HarmonyPrefix]
+    static bool Prefix(PetroleumMachine __instance, FurnaceDatabase ___database, bool ___isWorkerSet, FuelStateInfo ___fuelStateInfo, float ___fuelCapacity) {
+        if (___database.SmeltTimeLeft <= 0f || !___isWorkerSet || ___database.HasFullBarrel == 1)
+        {
+            ___fuelStateInfo.Set(___database.Fuel / ___fuelCapacity);
+            return false;
+        }
+        float num = ___fuelCapacity / 500f;
+        float num2 = ___database.Fuel - num * Time.deltaTime;
+        if (num2 < 0f)
+        {
+            num2 = 0f;
+        }
+        ___database.SetFuel(num2);
+        ___fuelStateInfo.Set(___database.Fuel / ___fuelCapacity);
+
+        return false;
     }
 }
